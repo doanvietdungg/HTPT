@@ -1,0 +1,375 @@
+{
+	"info": {
+		"_postman_id": "b1b1067f6-5f44-419c-8ce5-e9e282f95149",
+		"name": "Mini-HDFS Distributed Storage",
+		"description": "API Collection để test toàn bộ chức năng của đồ án môn Phát triển Hệ thống Phân tán (Upload pipeline, Election, Locking, Heartbeat).",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "1. Authentication",
+			"item": [
+				{
+					"name": "Register",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"12345\",\n    \"full_name\": \"Nguyen Van A\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						}
+					}
+				},
+				{
+					"name": "Login (Set Token)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"token\", jsonData.access_token);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"12345\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "2. Files & Storage",
+			"item": [
+				{
+					"name": "Init Upload (Create File Metadata)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"pm.collectionVariables.set(\"file_id\", jsonData.file_id);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"file_name\": \"test_video.mp4\",\n    \"size_bytes\": 150000000,\n    \"logical_path\": \"/videos\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/files/upload/init",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"files",
+								"upload",
+								"init"
+							]
+						}
+					}
+				},
+				{
+					"name": "Upload Chunk (Form-data)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "formdata",
+							"formdata": [
+								{
+									"key": "file_id",
+									"value": "{{file_id}}",
+									"type": "text"
+								},
+								{
+									"key": "chunk_index",
+									"value": "0",
+									"type": "text"
+								},
+								{
+									"key": "secondary_nodes",
+									"value": "node2:8000",
+									"description": "Pipeline to this node",
+									"type": "text"
+								},
+								{
+									"key": "file",
+									"type": "file",
+									"src": []
+								}
+							]
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/chunks/upload",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"chunks",
+								"upload"
+							]
+						}
+					}
+				},
+				{
+					"name": "Init Download (Get Plan)",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/files/download/init/{{file_id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"files",
+								"download",
+								"init",
+								"{{file_id}}"
+							]
+						}
+					}
+				},
+				{
+					"name": "Download Valid Chunk stream",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/chunks/download/{{file_id}}_ck_0",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"chunks",
+								"download",
+								"{{file_id}}_ck_0"
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "3. Concurrency Lock",
+			"item": [
+				{
+					"name": "Acquire Lock",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/lock/acquire?file_id={{file_id}}&client_id=my_computer_1&lock_type=EXCLUSIVE",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"lock",
+								"acquire"
+							],
+							"query": [
+								{
+									"key": "file_id",
+									"value": "{{file_id}}"
+								},
+								{
+									"key": "client_id",
+									"value": "my_computer_1"
+								},
+								{
+									"key": "lock_type",
+									"value": "EXCLUSIVE",
+									"description": "EXCLUSIVE / SHARED"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Release Lock",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/lock/release?lock_id=ABC&client_id=my_computer_1",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"lock",
+								"release"
+							],
+							"query": [
+								{
+									"key": "lock_id",
+									"value": "ABC"
+								},
+								{
+									"key": "client_id",
+									"value": "my_computer_1"
+								}
+							]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "4. Distributed Core",
+			"item": [
+				{
+					"name": "Manual Trigger Election",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/election/start",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"election",
+								"start"
+							]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8001",
+			"type": "string"
+		},
+		{
+			"key": "token",
+			"value": "paste_your_token_here_or_it_auto_sets_on_login",
+			"type": "string"
+		},
+		{
+			"key": "file_id",
+			"value": "",
+			"type": "string"
+		}
+	]
+}

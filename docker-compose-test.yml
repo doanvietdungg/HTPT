@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  node1:
+    build: .
+    container_name: minihdfs_node1
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./data_node1:/workspace/data
+      - ./metadata_node1:/workspace/metadata
+    environment:
+      - NODE_ID=node1
+      - MY_IP=node1
+      - PEER_IPS=node2:8000,node3:8000
+    networks:
+      - hdfs_net
+
+  node2:
+    build: .
+    container_name: minihdfs_node2
+    ports:
+      - "8002:8000"
+    volumes:
+      - ./data_node2:/workspace/data
+      - ./metadata_node2:/workspace/metadata
+    environment:
+      - NODE_ID=node2
+      - MY_IP=node2
+      - PEER_IPS=node1:8000,node3:8000
+    networks:
+      - hdfs_net
+
+  node3:
+    build: .
+    container_name: minihdfs_node3
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./data_node3:/workspace/data
+      - ./metadata_node3:/workspace/metadata
+    environment:
+      - NODE_ID=node3
+      - MY_IP=node3
+      - PEER_IPS=node1:8000,node2:8000
+    networks:
+      - hdfs_net
+
+networks:
+  hdfs_net:
+    driver: bridge

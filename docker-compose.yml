@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  minihdfs_node:
+    build: .
+    container_name: minihdfs_node_${NODE_ID:-1}
+    ports:
+      - "${PORT:-8000}:8000"
+    volumes:
+      - ./data:/workspace/data
+      - ./metadata:/workspace/metadata
+    environment:
+      - NODE_ID=${NODE_ID:-node1}
+      - MY_IP=${MY_IP:-127.0.0.1}
+      - PEER_IPS=${PEER_IPS:-""}
+      - DATA_DIR=/workspace/data
+      - DB_URL=sqlite:////workspace/metadata/metadata.db
+      - API_PORT=${PORT:-8000}
+    restart: unless-stopped
+    # network_mode: "host" # Có thể dùng host mode trên Linux tĩnh, nhưng bridge mặc định kèm Port mapping là ok nhất cho MacOS/Windows.
