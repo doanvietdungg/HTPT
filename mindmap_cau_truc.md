@@ -1,73 +1,52 @@
-# Mindmap: LUỒNG XỬ LÝ PHÂN TÁN (MINI-HDFS)
+# Mindmap: KIẾN TRÚC HỆ THỐNG LƯU TRỮ PHÂN TÁN (MINI-HDFS)
 
-> Dán nội dung cấu trúc dấu sao bên dưới vào **Markmap.js / Xmind / Whimsical** để vẽ sơ đồ tự động.
+> Dán nội dung dấu sao bên dưới vào **markmap.js** hoặc **Xmind** để vẽ sơ đồ.
 
 ---
 
-* MINI-HDFS: LUỒNG XỬ LÝ PHÂN TÁN
-  * 1. LUỒNG UPLOAD FILE
-    * Bước 1: Client xin Sổ Đỏ (Init Upload)
-      * Client gọi POST /api/files/upload/init
-      * Gửi lên: tên file, kích thước (byte), đường dẫn ảo
-      * NameNode tính toán: 150MB ÷ 20MB = 8 Mảnh (Chunks)
-      * NameNode trả về Placement Plan (Bản đồ phân công từng mảnh)
-        * chunk_index: Số thứ tự mảnh (0 → N)
-        * primary_node: Máy chủ chính nhận mảnh
-        * secondary_nodes: Danh sách máy sao lưu
-        * cdn_url: URL S3 xem trực tiếp ngay khi upload xong
-    * Bước 2: Client tự băm nhỏ File (Chunk Slicing)
-      * Dùng file.slice(start, end) trong Javascript
-      * Không cần Server làm thay → Giải phóng băng thông NameNode
-      * Mỗi mảnh là một khối byte độc lập
-    * Bước 3: Đẩy từng Mảnh lên DataNode (Upload Chunk)
-      * Client gọi POST /api/chunks/upload (Form-Data)
-      * Gửi đúng đến máy chủ primary_node theo Sổ Đỏ
-        * Mảnh 0 → gửi thẳng vào Node 3 (port :8003)
-        * Mảnh 1 → gửi thẳng vào Node 2 (port :8002)
-        * Mảnh N → ... (phân phối tròn Round-Robin)
-      * Kèm theo tên các máy sao lưu (secondary_nodes)
-  * 2. CHIẾN THUẬT SAO LƯU (REPLICATION)
-    * Thuật toán Pipelined Replication
-      * DataNode nhận Mảnh → Ghi xuống ổ cứng cục bộ
-      * DataNode tự động gọi ngầm POST /api/chunks/replica
-      * Chuyển tiếp bản sao sang Node dự phòng (secondary_node)
-      * Replication Factor = 2 → mỗi Mảnh tồn tại ở 2 máy khác nhau
-      * Client không cần biết → Hoàn toàn tự trị phía Server
-    * Chiến lược chọn Node lưu trữ (Load Balancing)
-      * NameNode chấm điểm từng máy theo công thức
-        * 50% × Tỉ lệ ổ cứng còn trống
-        * 30% × (1 − Tải CPU hiện tại)
-        * 20% × Điểm mạng (Network Score)
-      * Mảnh được phân phối theo Round-Robin trên tập máy đã xếp hạng
-      * Máy đầy hoặc quá tải → Bị loại khỏi danh sách ứng viên
-    * Cơ chế Tự Phục Hồi (Re-Replication Daemon)
-      * Background Daemon chạy ngầm định kỳ
-      * Phát hiện Mảnh bị thiếu bản sao (do máy chết)
-      * Tự động nhân bản lại sang máy khác còn sống
-  * 3. LUỒNG LẤY FILE & XEM TRỰC TIẾP
-    * Cách 1: Tải File Thủ Công (Download Pipeline - P2P)
-      * Bước 1: Client xin Bản Đồ Tải → GET /api/files/download/init/{file_id}
-        * NameNode trả về download_plan
-        * Danh sách từng Mảnh + các replica đang sống (active_replicas)
-      * Bước 2: Client tự tải từng Mảnh → GET /api/chunks/download/{chunk_id}
-        * Gọi thẳng vào IP máy đang giữ Mảnh đó
-        * Server trả về Binary (Octet-Stream)
-        * Nếu máy A chết → chuyển ngay sang máy B (replica dự phòng)
-      * Bước 3: Client ghép lại → Xuất file hoàn chỉnh
-    * Cách 2: Xem Trực Tiếp qua S3 Gateway (CDN Stream)
-      * Client chỉ cần 1 URL duy nhất → GET /api/files/s3/{file_id}
-      * NameNode đóng vai trò Proxy Gateway
-        * Tra cứu download_plan nội bộ
-        * Kết nối đến lần lượt các DataNode theo httpx AsyncClient
-        * Streaming từng luồng byte liên tục (Streaming Response)
-      * Trình duyệt nhận về File hoàn chỉnh mà không biết bên trong có nhiều mảnh
-      * Tự nhận diện loại file (MIME Sniffing) → Hiển thị video/ảnh inline
-  * 4. GIÁM SÁT SỨC KHỎE CỤM (Heartbeat System)
-    * Mỗi Node tự động ping định kỳ sang các Node khác
-      * Gửi: POST /api/nodes/heartbeat
-      * Payload: node_id, dung lượng lưu trữ, CPU load hiện tại
-    * NameNode cập nhật bảng trạng thái ClusterNode
-      * Máy gửi nhịp tim → Status: ALIVE
-      * Máy im lặng quá hạn → Status: DEAD → Bị loại khỏi Placement Plan
-    * Kết nối trực tiếp với luồng Upload
-      * Máy bị gán DEAD sẽ không bao giờ được chỉ định nhận Mảnh mới
+* HỆ THỐNG LƯU TRỮ PHÂN TÁN (MINI-HDFS)
+  * ĐẶC ĐIỂM CỐT LÕI
+    * Cả 3 máy chạy cùng 1 mã nguồn — không có máy nào được cứng nhắc chỉ định trước
+    * Vai trò NameNode hay DataNode được xác định ĐỘNG theo 2 cơ chế
+      * Cơ chế 1 — Bầu Cử (Bully Election): Node nào có Node_ID lớn nhất trong số các máy đang sống sẽ được bầu làm NameNode chính thức
+      * Cơ chế 2 — Theo điểm vào Client: Máy nào tiếp nhận yêu cầu Upload từ Client, máy đó đóng vai NameNode cho phiên giao dịch đó
+  * VAI TRÒ NAMENODE (Trung tâm điều phối)
+    * Khi nào 1 máy là NameNode?
+      * TH1: Máy đó thắng phiên Bầu Cử → Được toàn mạng công nhận là Leader chính thức
+      * TH2: Client gọi trực tiếp vào máy đó để Upload/Init → Máy đó tự xử lý như NameNode
+    * NameNode làm gì?
+      * Lưu Metadata: tên file, kích thước, tổng số mảnh vào DB nội bộ
+      * Lập kế hoạch phân phối (Placement Plan): quyết định mảnh nào vào máy nào
+      * Đứng làm cổng S3 Gateway: gom mảnh từ các DataNode để trả URL xem trực tiếp
+      * Giám sát Nhịp tim (Heartbeat): theo dõi sức khỏe các máy khác
+  * VAI TRÒ DATANODE (Chi nhánh lưu trữ)
+    * Khi nào 1 máy là DataNode?
+      * Khi máy đó thua phiên Bầu Cử → Tự động về làm Follower
+      * Khi máy đó nhận lệnh lưu Chunk từ Client hoặc từ NameNode
+    * DataNode làm gì?
+      * Nhận và lưu Chunk vật lý vào ổ cứng cục bộ (tự trị dữ liệu)
+      * Sau khi lưu xong → Tự động đẩy bản sao sang máy dự phòng (Pipelined Replication)
+      * Báo cáo sức khỏe định kỳ: CPU, ổ cứng còn trống lên NameNode
+      * Phục vụ Client tải Chunk khi được yêu cầu
+  * CÁC KỊCH BẢN VAI TRÒ TRONG THỰC TẾ
+    * Kịch bản bình thường (Bầu cử xong)
+      * Node1 (ID=1) < Node2 (ID=2) < Node3 (ID=3)
+      * Node3 thắng cử → Node3 là NameNode
+      * Node1 và Node2 → là DataNode
+      * Client luôn trỏ vào Node3 để Upload/Init
+    * Kịch bản Node3 bị sập
+      * Node3 không gửi Heartbeat → bị đánh dấu DEAD
+      * Phiên Bầu Cử mới tự động kích hoạt
+      * Node2 (ID lớn nhất còn sống) → Lên làm NameNode mới
+      * Node1 tiếp tục làm DataNode
+      * Hệ thống tiếp tục hoạt động không cần khởi động lại
+    * Kịch bản Client gọi thẳng vào Node2 (bypass Election)
+      * Node2 vẫn chứa đầy đủ API → Tự xử lý như NameNode cục bộ
+      * Lưu Metadata vào DB của Node2
+      * Phân phối Chunk sang Node1 và Node3
+      * Lưu ý: Node1 không biết về file này (Metadata chỉ ở Node2)
+  * TÍNH TỰ TRỊ CỦA TỪNG NHÁNH
+    * Mỗi máy có DB riêng (SQLite) — không dùng chung
+    * Mỗi máy có thư mục ổ cứng riêng — không dùng chung
+    * Mỗi máy có thể phục vụ request độc lập kể cả khi 1 máy khác sập
+    * Mỗi máy đều có đủ khả năng làm NameNode hoặc DataNode tùy tình huống
