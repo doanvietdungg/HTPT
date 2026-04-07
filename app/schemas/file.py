@@ -17,7 +17,8 @@ class FileCreateResponse(BaseModel):
     file_name: str
     chunk_size: int
     total_chunks: int
-    placement_plan: List[ChunkPlacement] 
+    placement_plan: List[ChunkPlacement]
+    cdn_url: Optional[str] = None
 
 class ChunkLocation(BaseModel):
     chunk_index: int

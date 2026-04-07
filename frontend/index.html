@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini-HDFS Web OS</title>
+    <link rel="stylesheet" href="/ui/css/style.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="app">
+        <!-- Auth View -->
+        <div id="auth-view" class="view active glass-panel">
+            <h2><i class="fas fa-network-wired"></i> Mini-HDFS</h2>
+            <p>Distributed Storage Login</p>
+            <div class="input-group">
+                <i class="fas fa-user"></i>
+                <input type="text" id="username" placeholder="Username" value="admin">
+            </div>
+            <div class="input-group">
+                <i class="fas fa-lock"></i>
+                <input type="password" id="password" placeholder="Password" value="12345">
+            </div>
+            <button onclick="login()"><i class="fas fa-sign-in-alt"></i> Access Cluster</button>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view">
+            <header class="glass-panel">
+                <div class="brand"><i class="fas fa-network-wired"></i> Mini-HDFS Control Panel</div>
+                <div class="controls">
+                    <button onclick="triggerElection()" class="btn-warning"><i class="fas fa-crown"></i> Trigger Election</button>
+                    <button onclick="logout()"><i class="fas fa-sign-out-alt"></i> Logout</button>
+                </div>
+            </header>
+
+            <main>
+                <!-- Left Sidebar: Uploader -->
+                <section class="upload-section glass-panel">
+                    <h3><i class="fas fa-cloud-upload-alt"></i> Upload Node</h3>
+                    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()">
+                        <i class="fas fa-file-upload fa-3x"></i>
+                        <p>Click or drag file here to Upload</p>
+                        <input type="file" id="file-input" hidden onchange="handleFileSelect(event)">
+                    </div>
+                    
+                    <div id="upload-progress-container" style="display: none;">
+                        <h4 id="upload-filename">Uploading...</h4>
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="upload-progress"></div>
+                        </div>
+                        <p id="upload-status" class="status-text">Initializing...</p>
+                        <div id="placement-map" class="placement-map"></div>
+                    </div>
+                </section>
+
+                <!-- Right Sidebar: Explorer -->
+                <section class="explorer-section glass-panel">
+                    <h3><i class="fas fa-folder-open"></i> Distributed File Explorer</h3>
+                    <button onclick="fetchFileList()" class="refresh-btn"><i class="fas fa-sync-alt"></i> Refresh</button>
+                    <div class="file-list" id="file-list">
+                        <!-- Loaded dynamically -->
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <script src="/ui/js/app.js?v=2"></script>
+</body>
+</html>

@@ -22,7 +22,8 @@ async def forward_chunk_to_replica(file_id: str, chunk_index: int, file_path: st
     """
     Pipelining: Primary node forwards the chunk to the secondary node
     """
-    # Assuming next_node_ip contains IP:PORT
+    if ":" not in next_node_ip:
+        next_node_ip = f"{next_node_ip}:8000"
     url = f"http://{next_node_ip}/api/chunks/replica"
     try:
         async with httpx.AsyncClient() as client:

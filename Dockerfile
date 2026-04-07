@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
 COPY ./app ./app
+COPY ./frontend ./frontend
 
 # Create directories for data and metadata inside container
 RUN mkdir -p /workspace/data /workspace/metadata

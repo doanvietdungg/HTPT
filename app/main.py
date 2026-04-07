@@ -1,5 +1,7 @@
 from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from app.database.session import engine
 from app.models.base import Base
 from app.core.config import settings
@@ -22,6 +24,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
 app.include_router(files_router, prefix="/api/files", tags=["files"])
 app.include_router(chunks_router, prefix="/api/chunks", tags=["chunks"])
@@ -38,32 +48,11 @@ async def startup_event():
     asyncio.create_task(send_heartbeat_to_peers())
     asyncio.create_task(re_replication_daemon())
 
-@app.get("/", response_class=HTMLResponse)
+# Mount the static frontend
+import os
+os.makedirs("frontend", exist_ok=True)
+app.mount("/ui", StaticFiles(directory="frontend", html=True), name="frontend")
+
+@app.get("/", include_in_schema=False)
 def read_root():
-    html_content = f"""
-    <html>
-        <head>
-            <title>Mini-HDFS Dashboard - {settings.NODE_ID}</title>
-            <style>
-                body {{ font-family: Arial; padding: 20px; }}
-                h1 {{ color: #2c3e50; }}
-                .card {{ border: 1px solid #ccc; padding: 15px; border-radius: 8px; margin-bottom: 20px; }}
-            </style>
-        </head>
-        <body>
-            <h1>Mini-HDFS Node: {settings.NODE_ID}</h1>
-            <div class="card">
-                <h2>Node Information</h2>
-                <p><strong>IP:</strong> {settings.MY_IP}</p>
-                <p><strong>Port:</strong> {settings.API_PORT}</p>
-                <p><strong>Peers:</strong> {settings.PEER_IPS}</p>
-            </div>
-            <div class="card">
-                <h2>Actions</h2>
-                <p><a href="/docs" target="_blank">View Swagger API API Docs</a></p>
-                <button onclick="fetch('/api/election/start', {{method: 'POST'}}).then(r=>alert('Election triggered!'))">Manually Trigger Election</button>
-            </div>
-        </body>
-    </html>
-    """
-    return HTMLResponse(content=html_content)
+    return RedirectResponse(url="/ui/")

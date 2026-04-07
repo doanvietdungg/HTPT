@@ -242,6 +242,25 @@
 							]
 						}
 					}
+				},
+				{
+					"name": "View File via S3 Gateway (Browser URL)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/files/s3/{{file_id}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"files",
+								"s3",
+								"{{file_id}}"
+							]
+						}
+					}
 				}
 			]
 		},

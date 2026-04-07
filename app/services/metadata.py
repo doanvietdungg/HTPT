@@ -113,7 +113,8 @@ def create_file_metadata(db: Session, req: FileCreateRequest, user_id: str) -> F
         file_name=req.file_name,
         chunk_size=settings.CHUNK_SIZE,
         total_chunks=total_chunks,
-        placement_plan=placement_plan
+        placement_plan=placement_plan,
+        cdn_url=f"http://localhost:{settings.API_PORT}/api/files/s3/{file_id}"
     )
 
 def get_file_download_plan(db: Session, file_id: str) -> FileDownloadResponse:
