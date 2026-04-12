@@ -1,6 +1,76 @@
-version: '3.8'
-
 services:
+  # ─────────────────────────────────────────────
+  # MySQL Databases — 1 per node (tự trị dữ liệu)
+  # ─────────────────────────────────────────────
+  mysql_node1:
+    image: mysql:8.0
+    container_name: minihdfs_mysql_node1
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: hdfs_meta
+      MYSQL_USER: hdfs_user
+      MYSQL_PASSWORD: hdfs_pass
+    command: --default-authentication-plugin=mysql_native_password --skip-ssl
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data_node1:/var/lib/mysql
+    networks:
+      - hdfs_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "hdfs_user", "-phdfs_pass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mysql_node2:
+    image: mysql:8.0
+    container_name: minihdfs_mysql_node2
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: hdfs_meta
+      MYSQL_USER: hdfs_user
+      MYSQL_PASSWORD: hdfs_pass
+    command: --default-authentication-plugin=mysql_native_password --skip-ssl
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_data_node2:/var/lib/mysql
+    networks:
+      - hdfs_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "hdfs_user", "-phdfs_pass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  mysql_node3:
+    image: mysql:8.0
+    container_name: minihdfs_mysql_node3
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpass
+      MYSQL_DATABASE: hdfs_meta
+      MYSQL_USER: hdfs_user
+      MYSQL_PASSWORD: hdfs_pass
+    command: --default-authentication-plugin=mysql_native_password --skip-ssl
+    ports:
+      - "3309:3306"
+    volumes:
+      - mysql_data_node3:/var/lib/mysql
+    networks:
+      - hdfs_net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "hdfs_user", "-phdfs_pass"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ─────────────────────────────────────────────
+  # FastAPI Nodes — mỗi node kết nối MySQL riêng
+  # ─────────────────────────────────────────────
   node1:
     build: .
     container_name: minihdfs_node1
@@ -8,11 +78,14 @@ services:
       - "8001:8000"
     volumes:
       - ./data_node1:/workspace/data
-      - ./metadata_node1:/workspace/metadata
     environment:
       - NODE_ID=node1
       - MY_IP=node1
       - PEER_IPS=node2:8000,node3:8000
+      - DB_URL=mysql+pymysql://hdfs_user:hdfs_pass@mysql_node1:3306/hdfs_meta
+    depends_on:
+      mysql_node1:
+        condition: service_healthy
     networks:
       - hdfs_net
 
@@ -23,11 +96,14 @@ services:
       - "8002:8000"
     volumes:
       - ./data_node2:/workspace/data
-      - ./metadata_node2:/workspace/metadata
     environment:
       - NODE_ID=node2
       - MY_IP=node2
       - PEER_IPS=node1:8000,node3:8000
+      - DB_URL=mysql+pymysql://hdfs_user:hdfs_pass@mysql_node2:3306/hdfs_meta
+    depends_on:
+      mysql_node2:
+        condition: service_healthy
     networks:
       - hdfs_net
 
@@ -38,14 +114,22 @@ services:
       - "8003:8000"
     volumes:
       - ./data_node3:/workspace/data
-      - ./metadata_node3:/workspace/metadata
     environment:
       - NODE_ID=node3
       - MY_IP=node3
       - PEER_IPS=node1:8000,node2:8000
+      - DB_URL=mysql+pymysql://hdfs_user:hdfs_pass@mysql_node3:3306/hdfs_meta
+    depends_on:
+      mysql_node3:
+        condition: service_healthy
     networks:
       - hdfs_net
 
 networks:
   hdfs_net:
     driver: bridge
+
+volumes:
+  mysql_data_node1:
+  mysql_data_node2:
+  mysql_data_node3:

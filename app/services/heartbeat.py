@@ -27,6 +27,8 @@ async def send_heartbeat_to_peers():
                     url = f"http://{peer}/api/nodes/heartbeat"
                     params = {
                         "node_id": settings.NODE_ID,
+                        "host": settings.MY_IP,
+                        "port": settings.API_PORT,
                         "capacity": float(total),
                         "used": float(used),
                         "cpu_load": cpu_load
@@ -36,12 +38,22 @@ async def send_heartbeat_to_peers():
                     except Exception:
                         pass # Ignore if peer is down
                         
-            # Use a local session to perform failure detection on other nodes
-            detect_failures()
         except Exception as e:
             print(f"Heartbeat loop error: {e}")
             
         await asyncio.sleep(settings.HEARTBEAT_INTERVAL)
+
+async def detect_failures_daemon():
+    """
+    Standalone background task to check last_heartbeat of nodes and mark them DEAD if > timeout.
+    Must run even if PEER_IPS is empty, to detect and purge phantom/stale nodes from the DB.
+    """
+    while True:
+        try:
+            detect_failures()
+        except Exception as e:
+            print(f"Failure detection error: {e}")
+        await asyncio.sleep(settings.ELECTION_TIMEOUT)
 
 def detect_failures():
     """

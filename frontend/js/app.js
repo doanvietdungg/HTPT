@@ -149,6 +149,14 @@ async function handleFileSelect(event) {
         
         if (!initRes.ok) throw new Error("Initialization failed");
         const plan = await initRes.json();
+
+        // Fetch node topology to know where to send each chunk
+        // Works for 1-node, 3-node, or any N-node setup
+        uploadStatus.innerText = "Fetching cluster topology...";
+        const topoRes = await fetch(`${API_BASE}/api/nodes/topology`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const topology = topoRes.ok ? await topoRes.json() : {};
         
         // Render initial map UI
         plan.placement_plan.forEach(p => {
@@ -177,10 +185,30 @@ async function handleFileSelect(event) {
             }
             formData.append('file', blob, file.name);
             
-            // Map node1 -> 8001, node2 -> 8002, node3 -> 8003
-            const nodeNum = placement.primary_node.replace('node', '');
-            const targetPort = 8000 + parseInt(nodeNum);
-            const targetUrl = `http://localhost:${targetPort}/api/chunks/upload`;
+            // Route chunk to the correct node using topology from API
+            // Fallback to current host (same node) if topology not available
+            let targetUrl;
+            if (topology[placement.primary_node]) {
+                let { host, port } = topology[placement.primary_node];
+                
+                // Smart rewrite for local docker-compose testing vs Real LAN deployment
+                // If the backend returns "node1", "node2" AND the browser is running on localhost,
+                // we rewrite it to 8001, 8002 so the browser can reach it outside the docker network.
+                if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                    if (host.startsWith('node')) {
+                        const nMatch = host.replace('node', '');
+                        if (!isNaN(nMatch)) {
+                            host = 'localhost';
+                            port = 8000 + parseInt(nMatch);
+                        }
+                    }
+                }
+                
+                targetUrl = `http://${host}:${port}/api/chunks/upload`;
+            } else {
+                // Fallback: send to current gateway (works for 1-node setup)
+                targetUrl = `${API_BASE}/api/chunks/upload`;
+            }
             
             const chunkRes = await fetch(targetUrl, {
                 method: 'POST',

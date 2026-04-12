@@ -13,7 +13,11 @@ from app.api.election import router as election_router
 from app.api.lock import router as lock_router
 from app.services.heartbeat import send_heartbeat_to_peers
 from app.services.recovery import re_replication_daemon
+from app.database.session import SessionLocal
+from app.models.domain import ClusterNode
+import shutil
 import asyncio
+import datetime
 
 # Create all tables in the database
 Base.metadata.create_all(bind=engine)
@@ -45,8 +49,55 @@ async def startup_event():
     print(f"Data Dir: {settings.DATA_DIR}")
     print(f"Metadata DB: {settings.DB_URL}")
     print(f"Peers: {settings.PEER_IPS}")
+    
+    # Self-register this node into the cluster table so it can act immediately
+    # even when no peers are online yet
+    _self_register()
+    
     asyncio.create_task(send_heartbeat_to_peers())
+    from app.services.heartbeat import detect_failures_daemon
+    asyncio.create_task(detect_failures_daemon())
     asyncio.create_task(re_replication_daemon())
+
+def _self_register():
+    """Register this node into its own ClusterNode table on startup."""
+    db = SessionLocal()
+    try:
+        import os
+        data_dir = settings.DATA_DIR
+        os.makedirs(data_dir, exist_ok=True)
+        total, used, _ = shutil.disk_usage(data_dir)
+        
+        existing = db.query(ClusterNode).filter(ClusterNode.node_id == settings.NODE_ID).first()
+        if existing:
+            existing.status = "ALIVE"
+            existing.host = settings.MY_IP          # <--- Lấy IP mới nhất
+            existing.port = settings.API_PORT       # <--- Lấy Port mới nhất
+            existing.last_heartbeat = datetime.datetime.utcnow()
+            existing.storage_capacity_total = float(total)
+            existing.storage_capacity_used = float(used)
+        else:
+            node = ClusterNode(
+                node_id=settings.NODE_ID,
+                node_type="DATANODE",
+                host=settings.MY_IP,
+                port=settings.API_PORT,
+                status="ALIVE",
+                role="FOLLOWER",
+                term=0,
+                last_heartbeat=datetime.datetime.utcnow(),
+                storage_capacity_total=float(total),
+                storage_capacity_used=float(used),
+                cpu_load=0.0,
+                network_score=1.0,
+            )
+            db.add(node)
+        db.commit()
+        print(f"[Startup] Self-registered node '{settings.NODE_ID}' as ALIVE.")
+    except Exception as e:
+        print(f"[Startup] Self-register failed: {e}")
+    finally:
+        db.close()
 
 # Mount the static frontend
 import os

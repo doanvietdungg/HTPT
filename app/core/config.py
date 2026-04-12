@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     API_PORT: int = 8000
     PEER_IPS: str = "" # Comma separated list of IP:PORT of other nodes
     DATA_DIR: str = "data"
-    DB_URL: str = "sqlite:///./metadata/metadata.db"
+    DB_URL: str = "mysql+pymysql://hdfs_user:hdfs_pass@localhost:3306/hdfs_meta"
     
     # Storage settings
     REPLICATION_FACTOR: int = 2

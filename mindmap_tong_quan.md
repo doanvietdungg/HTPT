@@ -25,24 +25,24 @@
       * Đăng ký, đăng nhập bằng JWT Token
       * Mỗi file gắn với chủ sở hữu (owner)
   * 2. CỤM MÁY — 3 NODES
-    * NODE 1 (node1 — port 8001)
+    * NODE 1 (node1 — FastAPI :8001 | MySQL :3307)
       * Tài nguyên cục bộ
-        * DB riêng: metadata_node1/metadata.db (Lưu FileEntry, ChunkEntry, ClusterNode)
+        * DB riêng: MySQL instance `mysql_node1` — database `hdfs_meta` (Lưu FileEntry, ChunkEntry, ClusterNode)
         * Ổ cứng riêng: data_node1/ (Lưu Chunk vật lý)
         * Cấu hình riêng: NODE_ID=node1, PEER_IPS=node2,node3
       * Vai trò mặc định sau Bầu Cử
         * Thường là DataNode vì có Node_ID nhỏ nhất
         * Nhận và lưu Chunk khi NameNode phân công
-    * NODE 2 (node2 — port 8002)
+    * NODE 2 (node2 — FastAPI :8002 | MySQL :3308)
       * Tài nguyên cục bộ
-        * DB riêng: metadata_node2/metadata.db
+        * DB riêng: MySQL instance `mysql_node2` — database `hdfs_meta`
         * Ổ cứng riêng: data_node2/
         * Cấu hình riêng: NODE_ID=node2, PEER_IPS=node1,node3
       * Vai trò mặc định sau Bầu Cử
         * DataNode hoặc thăng lên NameNode nếu Node3 sập
-    * NODE 3 (node3 — port 8003)
+    * NODE 3 (node3 — FastAPI :8003 | MySQL :3309)
       * Tài nguyên cục bộ
-        * DB riêng: metadata_node3/metadata.db
+        * DB riêng: MySQL instance `mysql_node3` — database `hdfs_meta`
         * Ổ cứng riêng: data_node3/
         * Cấu hình riêng: NODE_ID=node3, PEER_IPS=node1,node2
       * Vai trò mặc định sau Bầu Cử

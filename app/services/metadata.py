@@ -36,8 +36,15 @@ def generate_placement_plan(db: Session, total_chunks: int, chunk_size: int, rep
     # 1. Get active nodes that can hold a chunk
     valid_nodes = get_active_nodes(db, chunk_size)
     
-    if len(valid_nodes) < replication_factor:
-        raise HTTPException(status_code=507, detail="Not enough active nodes for replication")
+    if len(valid_nodes) == 0:
+        raise HTTPException(status_code=507, detail="No active nodes available for storage")
+
+    # Gracefully degrade replication factor if fewer nodes are available
+    # e.g. only 1 node alive → replication_factor becomes 1 (no replica)
+    effective_rf = min(replication_factor, len(valid_nodes))
+    if effective_rf < replication_factor:
+        print(f"[Warning] Only {len(valid_nodes)} node(s) available. "
+              f"Replication factor degraded from {replication_factor} → {effective_rf}")
         
     # 2. Sort nodes by score descending
     valid_nodes.sort(key=lambda x: score_node(x), reverse=True)
@@ -45,13 +52,11 @@ def generate_placement_plan(db: Session, total_chunks: int, chunk_size: int, rep
     # 3. Create plan
     plan = []
     for i in range(total_chunks):
-        # To avoid hotspots, we can rotate the selected nodes based on chunk index
-        # This is a simple round-robin selection on top of the scored nodes
         primary_idx = i % len(valid_nodes)
         primary_node = valid_nodes[primary_idx].node_id
         
         secondary_nodes = []
-        for j in range(1, replication_factor):
+        for j in range(1, effective_rf):
             sec_idx = (primary_idx + j) % len(valid_nodes)
             secondary_nodes.append(valid_nodes[sec_idx].node_id)
             
@@ -62,6 +67,7 @@ def generate_placement_plan(db: Session, total_chunks: int, chunk_size: int, rep
         ))
         
     return plan
+
 
 def create_file_metadata(db: Session, req: FileCreateRequest, user_id: str) -> FileCreateResponse:
     # 1. Compute chunks
@@ -92,6 +98,7 @@ def create_file_metadata(db: Session, req: FileCreateRequest, user_id: str) -> F
         status="UPLOADING"
     )
     db.add(new_file)
+    db.flush() # Force insert of FileEntry before chunks to satisfy MySQL FKs
     
     # 4. Create ChunkEntries (Orphans until committed)
     for p in placement_plan:
@@ -132,16 +139,19 @@ def get_file_download_plan(db: Session, file_id: str) -> FileDownloadResponse:
             
         ips = []
         for r in replicas:
-            # We need the node IP from configuration or a lookup table. 
-            # In our simple setup, we can assume node_id maps to PEER_IPS or MY_IP but strictly we should store IP in ClusterNode.
-            # But we actually have `host` and `port` in ClusterNode which we can use, although they might be null right now.
-            # Workaround: just return the node_id and the client can map it, or we assume node_id is something client can reach.
-            # Let's return node_id for simplicity, since docker maps them.
-            ips.append(r.node_id)
+            n = db.query(ClusterNode).filter(ClusterNode.node_id == r.node_id).first()
+            if n and n.host:
+                ips.append(f"{n.host}:{n.port}")
+            else:
+                ips.append(r.node_id)
             
         if not ips:
             # Fallback to primary node if no replicas registered yet (e.g. testing)
-            ips.append(ck.primary_node_id)
+            n_pri = db.query(ClusterNode).filter(ClusterNode.node_id == ck.primary_node_id).first()
+            if n_pri and n_pri.host:
+                ips.append(f"{n_pri.host}:{n_pri.port}")
+            else:
+                ips.append(ck.primary_node_id)
             
         chunk_locations.append(ChunkLocation(
             chunk_index=ck.chunk_index,

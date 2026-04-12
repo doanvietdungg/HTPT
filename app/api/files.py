@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import httpx
 import mimetypes
 import os
+import urllib.parse
 
 from app.database.session import get_db
 from app.schemas.file import FileCreateRequest, FileCreateResponse, FileDownloadResponse, FileMetadata
@@ -62,10 +63,9 @@ async def s3_object_gateway(file_id: str, db: Session = Depends(get_db)):
                         continue
                         
                     # Pick the first active replica for this chunk
-                    target_ip = chunk.node_ips[0]
-                    # We assume docker internal network where node_ip is 'node1' and port is 8000
-                    # For a robust system we should store cluster node real ip:port, but here we fallback to HTTP
-                    url = f"http://{target_ip}:8000/api/chunks/download/{chunk.chunk_id}"
+                    target_host_port = chunk.node_ips[0]
+                    # target_host_port is fetched strictly from the DB topology (e.g. '127.0.0.1:8000')
+                    url = f"http://{target_host_port}/api/chunks/download/{chunk.chunk_id}"
                     
                     try:
                         async with client.stream("GET", url) as response:
@@ -76,8 +76,9 @@ async def s3_object_gateway(file_id: str, db: Session = Depends(get_db)):
                         print(f"Failed to fetch chunk {chunk.chunk_id} from {target_ip}: {e}")
                         # In production: fallback to chunk.node_ips[1] etc.
                         
+        encoded_name = urllib.parse.quote(plan.file_name)
         headers = {
-            "Content-Disposition": f'inline; filename="{plan.file_name}"'
+            "Content-Disposition": f"inline; filename*=utf-8''{encoded_name}"
         }
                         
         return StreamingResponse(stream_chunks(), media_type=mime_type, headers=headers)
