@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
 from app.database.session import get_db
-from app.models.domain import ClusterNode
+from app.models.domain import ClusterNode, FileEntry, ChunkEntry, ChunkReplica
 import datetime
 
 router = APIRouter()
@@ -60,4 +60,25 @@ def get_topology(db: Session = Depends(get_db)):
             "port": n.port or 8000
         }
         for n in nodes
+    }
+
+@router.get("/metadata/dump")
+def dump_metadata(db: Session = Depends(get_db)):
+    """
+    Called by peer nodes during Gossip synchronization.
+    Returns all metadata records to achieve eventual consistency.
+    """
+    files = db.query(FileEntry).all()
+    chunks = db.query(ChunkEntry).all()
+    replicas = db.query(ChunkReplica).all()
+    
+    # We use model_dump() or __dict__ to serialize SQLAlchemy models easily
+    def to_dict(obj):
+        d = {c.name: getattr(obj, c.name) for c in obj.__table__.columns}
+        return d
+        
+    return {
+        "files": [to_dict(f) for f in files],
+        "chunks": [to_dict(c) for c in chunks],
+        "replicas": [to_dict(r) for r in replicas]
     }

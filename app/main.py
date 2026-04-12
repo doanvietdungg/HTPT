@@ -56,7 +56,9 @@ async def startup_event():
     
     asyncio.create_task(send_heartbeat_to_peers())
     from app.services.heartbeat import detect_failures_daemon
+    from app.services.gossip import sync_metadata_daemon
     asyncio.create_task(detect_failures_daemon())
+    asyncio.create_task(sync_metadata_daemon())
     asyncio.create_task(re_replication_daemon())
 
 def _self_register():
