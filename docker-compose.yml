@@ -1,14 +1,4 @@
-# ============================================================
-# docker-compose.yml — Deploy trên TỪNG MÁY THẬT (1 node/máy)
-# ============================================================
-# Cách dùng:
-#   1. Copy toàn bộ thư mục project lên mỗi máy
-#   2. Tạo file .env phù hợp (xem mẫu trong deploy/.env.nodeX)
-#   3. Chạy: docker-compose up --build -d
-# ============================================================
-
 services:
-  # MySQL của node này — chỉ node này dùng
   mysql:
     image: mysql:8.0
     container_name: minihdfs_mysql_${NODE_ID:-node1}
@@ -30,7 +20,6 @@ services:
       timeout: 5s
       retries: 15
 
-  # FastAPI node của máy này
   node:
     build: .
     container_name: minihdfs_${NODE_ID:-node1}
