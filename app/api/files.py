@@ -123,7 +123,9 @@ def delete_file(file_id: str, db: Session = Depends(get_db), current_user: User 
         if not file_entry:
             raise HTTPException(status_code=404, detail="File not found")
             
+        import datetime
         file_entry.status = "DELETED"
+        file_entry.updated_at = datetime.datetime.utcnow()
         db.commit()
         return {"status": "success", "message": "File deleted successfully"}
     finally:

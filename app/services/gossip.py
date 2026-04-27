@@ -5,6 +5,7 @@ from app.database.session import SessionLocal
 from app.core.config import settings
 from app.models.domain import FileEntry, ChunkEntry, ChunkReplica
 from app.schemas.metadata_sync import MetadataDumpResponse
+import datetime
 
 async def sync_metadata_daemon():
     """
@@ -40,7 +41,16 @@ def _merge_metadata(data: dict):
         # Merge Files
         for f_data in data.get("files", []):
             validated = FileEntryDump(**f_data).dict()
-            db.merge(FileEntry(**validated))
+            existing = db.query(FileEntry).filter_by(file_id=validated['file_id']).first()
+            
+            if not existing:
+                db.merge(FileEntry(**validated))
+            else:
+                # Last-Writer-Wins (LWW) logic: only overwrite if incoming is strictly newer
+                incoming_time = validated['updated_at'].replace(tzinfo=None)
+                local_time = existing.updated_at.replace(tzinfo=None) if existing.updated_at else datetime.datetime.min
+                if incoming_time > local_time:
+                    db.merge(FileEntry(**validated))
             
         # Merge Chunks
         for c_data in data.get("chunks", []):
