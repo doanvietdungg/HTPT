@@ -4,24 +4,62 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mini-HDFS Web OS</title>
-    <link rel="stylesheet" href="/ui/css/style.css">
+    <link rel="stylesheet" href="/ui/css/style.css?v=3">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 <body>
     <div id="app">
         <!-- Auth View -->
         <div id="auth-view" class="view active glass-panel">
-            <h2><i class="fas fa-network-wired"></i> Mini-HDFS</h2>
-            <p>Distributed Storage Login</p>
-            <div class="input-group">
-                <i class="fas fa-user"></i>
-                <input type="text" id="username" placeholder="Username" value="admin">
+            <div class="auth-header">
+                <i class="fas fa-network-wired auth-logo"></i>
+                <h2>Mini-HDFS</h2>
+                <p>Distributed File Storage System</p>
             </div>
-            <div class="input-group">
-                <i class="fas fa-lock"></i>
-                <input type="password" id="password" placeholder="Password" value="12345">
+
+            <!-- Login Form -->
+            <div id="login-form" class="auth-form">
+                <div id="login-alert" class="auth-alert" style="display:none;"></div>
+                <div class="input-group">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="login-username" placeholder="Username" value="admin" autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="login-password" placeholder="Password" value="12345" autocomplete="current-password"
+                        onkeydown="if(event.key==='Enter') login()">
+                </div>
+                <button id="btn-login" onclick="login()">
+                    <i class="fas fa-sign-in-alt"></i> Đăng nhập
+                </button>
+                <p class="auth-switch">Chưa có tài khoản? <a onclick="switchTab('register')">Đăng ký ngay</a></p>
             </div>
-            <button onclick="login()"><i class="fas fa-sign-in-alt"></i> Access Cluster</button>
+
+            <!-- Register Form -->
+            <div id="register-form" class="auth-form" style="display:none;">
+                <div id="register-alert" class="auth-alert" style="display:none;"></div>
+                <div class="input-group">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="reg-username" placeholder="Tên đăng nhập" autocomplete="username">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-id-card"></i>
+                    <input type="text" id="reg-fullname" placeholder="Họ và tên (tuỳ chọn)" autocomplete="name">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="reg-password" placeholder="Mật khẩu" autocomplete="new-password">
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-check-circle"></i>
+                    <input type="password" id="reg-password-confirm" placeholder="Xác nhận mật khẩu" autocomplete="new-password"
+                        onkeydown="if(event.key==='Enter') register()">
+                </div>
+                <button id="btn-register" onclick="register()">
+                    <i class="fas fa-user-plus"></i> Tạo tài khoản
+                </button>
+                <p class="auth-switch">Đã có tài khoản? <a onclick="switchTab('login')">Đăng nhập</a></p>
+            </div>
         </div>
 
         <!-- Dashboard View -->

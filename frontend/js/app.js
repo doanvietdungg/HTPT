@@ -35,9 +35,46 @@ function showDashboard() {
     fetchFileList();
 }
 
+// --- Auth Tab Switcher ---
+function switchTab(tab) {
+    const loginForm = document.getElementById('login-form');
+    const registerForm = document.getElementById('register-form');
+    const tabLogin = document.getElementById('tab-login');
+    const tabRegister = document.getElementById('tab-register');
+
+    if (tab === 'login') {
+        loginForm.style.display = 'block';
+        registerForm.style.display = 'none';
+        tabLogin.classList.add('active');
+        tabRegister.classList.remove('active');
+    } else {
+        loginForm.style.display = 'none';
+        registerForm.style.display = 'block';
+        tabLogin.classList.remove('active');
+        tabRegister.classList.add('active');
+    }
+    // Clear alerts
+    setAlert('login-alert', '', '');
+    setAlert('register-alert', '', '');
+}
+
+function setAlert(id, message, type) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (!message) { el.style.display = 'none'; el.textContent = ''; return; }
+    el.textContent = message;
+    el.className = `auth-alert ${type}`;
+    el.style.display = 'block';
+}
+
 async function login() {
-    const user = document.getElementById('username').value;
-    const pass = document.getElementById('password').value;
+    const user = document.getElementById('login-username').value.trim();
+    const pass = document.getElementById('login-password').value;
+    if (!user || !pass) { setAlert('login-alert', 'Please fill in all fields.', 'error'); return; }
+
+    const btn = document.getElementById('btn-login');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
     
     try {
         const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -46,14 +83,64 @@ async function login() {
             body: JSON.stringify({ username: user, password: pass })
         });
         
-        if (!res.ok) throw new Error('Login failed');
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Incorrect username or password');
+        }
         
         const data = await res.json();
         token = data.access_token;
         localStorage.setItem('token', token);
         showDashboard();
     } catch (e) {
-        alert(e.message);
+        setAlert('login-alert', e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Access Cluster';
+    }
+}
+
+async function register() {
+    const username = document.getElementById('reg-username').value.trim();
+    const fullname = document.getElementById('reg-fullname').value.trim();
+    const password = document.getElementById('reg-password').value;
+    const confirm  = document.getElementById('reg-password-confirm').value;
+
+    if (!username || !password) { setAlert('register-alert', 'Username and password are required.', 'error'); return; }
+    if (password !== confirm)   { setAlert('register-alert', 'Passwords do not match.', 'error'); return; }
+    if (password.length < 4)    { setAlert('register-alert', 'Password must be at least 4 characters.', 'error'); return; }
+
+    const btn = document.getElementById('btn-register');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Creating account...';
+
+    try {
+        const res = await fetch(`${API_BASE}/api/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, full_name: fullname || null })
+        });
+
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Registration failed');
+        }
+
+        // Auto-fill login and switch tab
+        document.getElementById('login-username').value = username;
+        document.getElementById('login-password').value = '';
+        switchTab('login');
+        setAlert('login-alert', `Account "${username}" created! Please sign in.`, 'success');
+
+        // Clear register fields
+        ['reg-username','reg-fullname','reg-password','reg-password-confirm'].forEach(id => {
+            document.getElementById(id).value = '';
+        });
+    } catch (e) {
+        setAlert('register-alert', e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-user-plus"></i> Create Account';
     }
 }
 
