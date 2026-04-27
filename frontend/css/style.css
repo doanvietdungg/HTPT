@@ -340,6 +340,24 @@ h3 {
     gap: 10px;
 }
 
+.action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: color 0.2s, transform 0.2s;
+    font-size: 1.2rem;
+    padding: 5px;
+}
+
+.action-btn:hover {
+    transform: scale(1.1);
+}
+
+.action-btn.text-primary:hover { color: var(--neon-blue); }
+.action-btn.text-warning:hover { color: #ffaa00; }
+.action-btn.text-danger:hover { color: #ff4444; }
+
 .action-icon {
     cursor: pointer;
     color: var(--text-secondary);

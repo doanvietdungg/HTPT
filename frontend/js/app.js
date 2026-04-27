@@ -187,9 +187,15 @@ function renderFiles(files) {
                 </div>
             </div>
             <div class="file-actions">
-                <a href="${API_BASE}/api/files/s3/${f.file_id}" target="_blank" title="View Stream (S3)">
-                    <i class="fas fa-external-link-alt action-icon"></i>
-                </a>
+                <button onclick="window.open('${API_BASE}/api/files/s3/${f.file_id}', '_blank')" title="Tải File (Bình thường)" class="action-btn text-primary">
+                    <i class="fas fa-download"></i>
+                </button>
+                <button onclick="slowDownload('${f.file_id}')" title="Tải Cố Tình Chậm (Test Khóa SHARED)" class="action-btn text-warning">
+                    <i class="fas fa-truck-loading"></i>
+                </button>
+                <button onclick="deleteFile('${f.file_id}')" title="Xóa File (Test Khóa EXCLUSIVE)" class="action-btn text-danger">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
             </div>
         `;
         fileList.appendChild(div);
@@ -202,6 +208,32 @@ function getFileIcon(filename) {
     if(['jpg','png','jpeg','gif'].includes(ext)) return 'fa-file-image';
     if(['pdf'].includes(ext)) return 'fa-file-pdf';
     return 'fa-file-alt';
+}
+
+function slowDownload(fileId) {
+    // Mở tab tải file chậm để test Lock
+    window.open(`${API_BASE}/api/files/s3/${fileId}?slow=true`, '_blank');
+}
+
+async function deleteFile(fileId) {
+    if (!confirm('Bạn có chắc chắn muốn xóa file này? Nếu file đang được tải, thao tác này sẽ bị chặn.')) return;
+    
+    try {
+        const res = await fetch(`${API_BASE}/api/files/${fileId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.detail || 'Delete failed');
+        }
+        
+        alert('✅ Đã xóa file thành công! (Không có tranh chấp nào xảy ra)');
+        fetchFileList();
+    } catch (e) {
+        alert(`❌ LỖI TRANH CHẤP: ${e.message}`);
+    }
 }
 
 // ----------------------------------------------------
