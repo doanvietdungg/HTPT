@@ -10,7 +10,8 @@ from app.database.session import get_db, SessionLocal
 from app.schemas.file import FileCreateRequest, FileCreateResponse, FileDownloadResponse, FileMetadata
 from app.services.metadata import create_file_metadata, get_file_download_plan
 from app.services.lock import acquire_lock, release_lock
-from app.models.domain import FileEntry
+from app.models.domain import FileEntry, AuditLog
+from app.core.config import settings
 from app.api.deps import get_current_user
 import asyncio
 import uuid
@@ -119,6 +120,19 @@ def delete_file(file_id: str, db: Session = Depends(get_db), current_user: User 
     client_id = f"del_{uuid.uuid4()}"
     lock = acquire_lock(db, file_id, client_id, current_user.user_id, "EXCLUSIVE")
     try:
+        # Check origin node restriction
+        origin_audit = db.query(AuditLog).filter(
+            AuditLog.file_id == file_id,
+            AuditLog.action_type == "UPLOAD_INIT",
+            AuditLog.target_node_id == settings.NODE_ID
+        ).first()
+        
+        if not origin_audit:
+            raise HTTPException(
+                status_code=403, 
+                detail="Quyền bị từ chối: Bạn chỉ có thể xoá file này tại Node gốc đã upload nó."
+            )
+            
         file_entry = db.query(FileEntry).filter(FileEntry.file_id == file_id).first()
         if not file_entry:
             raise HTTPException(status_code=404, detail="File not found")

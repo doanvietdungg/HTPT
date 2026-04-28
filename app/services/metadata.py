@@ -4,7 +4,7 @@ from typing import List
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from app.models.domain import FileEntry, ChunkEntry, ClusterNode, ChunkReplica
+from app.models.domain import FileEntry, ChunkEntry, ClusterNode, ChunkReplica, AuditLog
 from app.schemas.file import FileCreateRequest, FileCreateResponse, ChunkPlacement, FileDownloadResponse, ChunkLocation
 from app.core.config import settings
 from fastapi import HTTPException
@@ -113,6 +113,19 @@ def create_file_metadata(db: Session, req: FileCreateRequest, user_id: str) -> F
         )
         db.add(ck)
         
+    db.commit()
+    
+    # Record origin node in AuditLog (local only, not gossiped)
+    audit = AuditLog(
+        audit_id=str(uuid.uuid4()),
+        user_id=user_id,
+        action_type="UPLOAD_INIT",
+        file_id=file_id,
+        target_node_id=settings.NODE_ID,
+        result="SUCCESS",
+        detail="File initialization"
+    )
+    db.add(audit)
     db.commit()
     
     return FileCreateResponse(

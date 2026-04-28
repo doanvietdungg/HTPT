@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini-HDFS Performance Benchmark</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #ffffff;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .panel {
+            background: rgba(20, 30, 48, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        h1 { color: #00ff88; text-align: center; }
+        button {
+            background: linear-gradient(135deg, #00e5ff, #00ff88);
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover { opacity: 0.9; transform: translateY(-2px); }
+        button:disabled { background: #555; cursor: not-allowed; transform: none; }
+        .log-area {
+            background: #000;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            height: 200px;
+            overflow-y: auto;
+            color: #00ff88;
+            margin-top: 15px;
+        }
+        .charts {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        canvas {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="margin-bottom: 20px;">
+        <a href="/" style="color: #00e5ff; text-decoration: none;"><i class="fas fa-arrow-left"></i> Quay lại Dashboard</a>
+    </div>
+
+    <h1><i class="fas fa-tachometer-alt"></i> Cluster Performance Benchmark</h1>
+    
+    <div class="panel" style="text-align: center;">
+        <p>Công cụ này tự động tạo các file dung lượng tăng dần (1MB - 50MB) để đo thời gian Upload/Download và tính toán Throughput (Tốc độ truyền tải) của cụm Mini-HDFS.</p>
+        <button id="btn-start" onclick="startBenchmark()">Bắt đầu Test Hiệu Năng</button>
+    </div>
+
+    <div class="panel">
+        <h3><i class="fas fa-terminal"></i> Test Logs</h3>
+        <div id="log" class="log-area">Đang chờ lệnh...</div>
+    </div>
+
+    <div class="charts panel">
+        <div>
+            <h3 style="text-align: center;">Thời gian (Độ trễ - Giây)</h3>
+            <canvas id="latencyChart"></canvas>
+        </div>
+        <div>
+            <h3 style="text-align: center;">Tốc độ Throughput (MB/s)</h3>
+            <canvas id="throughputChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = ""; 
+    const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks (must match backend)
+    const testSizesMB = [1, 5, 10, 20, 50]; // Test files: 1MB, 5MB, 10MB, 20MB, 50MB
+    let token = localStorage.getItem('token');
+
+    let latencyChart, throughputChart;
+    let results = {
+        sizes: [],
+        uploadTime: [],
+        downloadTime: [],
+        uploadThroughput: [],
+        downloadThroughput: []
+    };
+
+    function log(msg) {
+        const el = document.getElementById('log');
+        el.innerHTML += `<div>[${new Date().toLocaleTimeString()}] ${msg}</div>`;
+        el.scrollTop = el.scrollHeight;
+    }
+
+    function initCharts() {
+        const ctxL = document.getElementById('latencyChart').getContext('2d');
+        const ctxT = document.getElementById('throughputChart').getContext('2d');
+
+        if(latencyChart) latencyChart.destroy();
+        if(throughputChart) throughputChart.destroy();
+
+        latencyChart = new Chart(ctxL, {
+            type: 'line',
+            data: {
+                labels: results.sizes.map(s => s + 'MB'),
+                datasets: [
+                    { label: 'Upload (giây)', data: results.uploadTime, borderColor: '#ff4444', backgroundColor: 'rgba(255,68,68,0.1)', fill: true, tension: 0.3 },
+                    { label: 'Download (giây)', data: results.downloadTime, borderColor: '#00e5ff', backgroundColor: 'rgba(0,229,255,0.1)', fill: true, tension: 0.3 }
+                ]
+            },
+            options: { scales: { y: { beginAtZero: true, title: { display: true, text: 'Giây (s)' } } } }
+        });
+
+        throughputChart = new Chart(ctxT, {
+            type: 'bar',
+            data: {
+                labels: results.sizes.map(s => s + 'MB'),
+                datasets: [
+                    { label: 'Upload (MB/s)', data: results.uploadThroughput, backgroundColor: '#ff4444' },
+                    { label: 'Download (MB/s)', data: results.downloadThroughput, backgroundColor: '#00e5ff' }
+                ]
+            },
+            options: { scales: { y: { beginAtZero: true, title: { display: true, text: 'MB/s' } } } }
+        });
+    }
+
+    function updateCharts() {
+        latencyChart.update();
+        throughputChart.update();
+    }
+
+    function createDummyBlob(sizeMB) {
+        const sizeBytes = sizeMB * 1024 * 1024;
+        const array = new Uint8Array(sizeBytes);
+        for(let i=0; i<sizeBytes; i+=1024) { array[i] = Math.random() * 255; }
+        return new Blob([array], { type: 'application/octet-stream' });
+    }
+
+    async function measureUpload(blob, filename) {
+        const startTime = performance.now();
+        
+        // 1. Init
+        const initRes = await fetch(`${API_BASE}/api/files/upload/init`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ file_name: filename, size_bytes: blob.size, logical_path: "/" })
+        });
+        if (!initRes.ok) throw new Error("Init failed: " + (await initRes.text()));
+        const plan = await initRes.json();
+
+        // 2. Upload chunks sequentially (to measure true single-client pipeline speed)
+        for (let i = 0; i < plan.total_chunks; i++) {
+            const placement = plan.placement_plan.find(x => x.chunk_index === i);
+            const startByte = i * plan.chunk_size;
+            const endByte = Math.min(startByte + plan.chunk_size, blob.size);
+            const chunkBlob = blob.slice(startByte, endByte);
+            
+            const formData = new FormData();
+            formData.append('file_id', plan.file_id);
+            formData.append('chunk_index', i);
+            if(placement.secondary_nodes.length > 0) formData.append('secondary_nodes', placement.secondary_nodes.join(','));
+            formData.append('file', chunkBlob, filename);
+            
+            const chunkRes = await fetch(`${API_BASE}/api/chunks/upload`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            if(!chunkRes.ok) throw new Error(`Chunk ${i} failed`);
+        }
+
+        const endTime = performance.now();
+        return { fileId: plan.file_id, durationSec: (endTime - startTime) / 1000 };
+    }
+
+    async function measureDownload(fileId) {
+        const startTime = performance.now();
+        
+        const res = await fetch(`${API_BASE}/api/files/s3/${fileId}`);
+        if (!res.ok) throw new Error("Download failed");
+        
+        // Consume the stream fully to measure real download time
+        const reader = res.body.getReader();
+        while(true) {
+            const {done, value} = await reader.read();
+            if(done) break;
+        }
+
+        const endTime = performance.now();
+        return (endTime - startTime) / 1000;
+    }
+
+    async function startBenchmark() {
+        if (!token) {
+            alert("Vui lòng đăng nhập ở trang chính trước khi chạy test!");
+            window.location.href = "/";
+            return;
+        }
+
+        document.getElementById('btn-start').disabled = true;
+        document.getElementById('log').innerHTML = '';
+        
+        results = { sizes: [], uploadTime: [], downloadTime: [], uploadThroughput: [], downloadThroughput: [] };
+        initCharts();
+
+        log("Bắt đầu chuỗi bài Test Hiệu Năng...");
+
+        for (const size of testSizesMB) {
+            log(`--- Đang test File ${size}MB ---`);
+            results.sizes.push(size);
+            
+            try {
+                log(`Đang sinh dữ liệu ngẫu nhiên ${size}MB trên RAM...`);
+                const blob = createDummyBlob(size);
+                const filename = `bench_${size}MB_${Date.now()}.dat`;
+
+                log(`Đang Upload ${size}MB...`);
+                const { fileId, durationSec: upSec } = await measureUpload(blob, filename);
+                const upThroughput = size / upSec;
+                log(`✅ Upload hoàn tất: ${upSec.toFixed(2)}s | ${upThroughput.toFixed(2)} MB/s`);
+                
+                results.uploadTime.push(upSec);
+                results.uploadThroughput.push(upThroughput);
+                updateCharts();
+
+                // Nghỉ 1s trước khi tải
+                await new Promise(r => setTimeout(r, 1000));
+
+                log(`Đang Download ${size}MB...`);
+                const downSec = await measureDownload(fileId);
+                const downThroughput = size / downSec;
+                log(`✅ Download hoàn tất: ${downSec.toFixed(2)}s | ${downThroughput.toFixed(2)} MB/s`);
+
+                results.downloadTime.push(downSec);
+                results.downloadThroughput.push(downThroughput);
+                updateCharts();
+
+            } catch (e) {
+                log(`<span style="color:red">Lỗi: ${e.message}</span>`);
+                break;
+            }
+        }
+
+        log("🎉 Đã hoàn thành toàn bộ bài Test Benchmark!");
+        document.getElementById('btn-start').disabled = false;
+    }
+
+    initCharts();
+</script>
+
+</body>
+</html>
